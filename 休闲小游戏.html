@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>贪吃蛇 · 竞技进化 (终极版)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0b0f0b;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', system-ui, monospace;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .game-container {
+            position: relative;
+            width: 95vmin;
+            height: 95vmin;
+            max-width: 95vmin;
+            max-height: 95vmin;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 0 40px #0f04, 0 0 0 2px #2a4a2a inset;
+            background: #0a120a;
+        }
+        canvas { display: block; width: 100%; height: 100%; background: #0a1a0a; cursor: crosshair; }
+
+        /* ---- 开始界面 ---- */
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(4, 12, 4, 0.94);
+            backdrop-filter: blur(14px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: #cfc;
+            transition: opacity 0.35s;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .screen.hidden { opacity: 0; pointer-events: none; display: none !important; }
+        .screen h1 {
+            font-size: clamp(2rem, 6vmin, 3.6rem);
+            color: #8f8;
+            text-shadow: 0 0 24px #0f0a, 0 0 60px #0f04;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+        .screen .sub {
+            color: #7a9a7a;
+            font-size: 0.95rem;
+            letter-spacing: 2px;
+            margin-bottom: 30px;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            justify-content: center;
+            margin-bottom: 22px;
+        }
+        .btn {
+            background: #1b2e1b;
+            border: 2px solid #3a6a3a;
+            color: #cfc;
+            padding: 14px 30px;
+            border-radius: 50px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 150px;
+            text-align: center;
+            user-select: none;
+        }
+        .btn:hover:not(:disabled) { background: #2a4a2a; border-color: #6c6; box-shadow: 0 0 20px #0f04; transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn.primary { background: #2a5a2a; border-color: #7c7; }
+        .btn.primary:hover { background: #3a7a3a; }
+        .btn.small { padding: 8px 18px; font-size: 0.9rem; min-width: 100px; }
+
+        .panel {
+            background: #0e1e0e;
+            border: 1px solid #2a4a2a;
+            border-radius: 18px;
+            padding: 22px 30px;
+            max-width: 700px;
+            width: 100%;
+            display: none;
+        }
+        .panel.show { display: block; }
+        .panel h3 { color: #9f9; margin-bottom: 18px; font-weight: 500; letter-spacing: 2px; }
+        .param-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px 24px;
+            margin-bottom: 20px;
+        }
+        .param-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.92rem;
+            color: #9c9;
+        }
+        .param-item input[type="number"] {
+            width: 80px;
+            background: #142414;
+            border: 1px solid #3a6a3a;
+            color: #dfd;
+            padding: 4px 8px;
+            border-radius: 8px;
+            text-align: right;
+            font-weight: 600;
+        }
+        .param-item input[type="number"]:focus { outline: none; border-color: #8f8; }
+
+        /* ---- 游戏内HUD ---- */
+        .hud {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(0, 20, 0, 0.75);
+            backdrop-filter: blur(6px);
+            padding: 8px 18px;
+            border-radius: 40px;
+            color: #afc;
+            font-weight: bold;
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+            border: 1px solid #3a6;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .hud span { color: #ffd966; font-size: 1.3rem; margin-left: 3px; }
+        .hud .coin { color: #ffd700; font-size: 1.2rem; }
+        .hud .len { color: #7cfc7c; font-size: 1rem; border-left: 1px solid #2a5a2a; padding-left: 12px; }
+
+        /* 小地图 */
+        .minimap {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0, 10, 0, 0.8);
+            border: 1px solid #3a6;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 0 14px #0f04;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .minimap canvas { display: block; width: 150px; height: 150px; }
+
+        /* 排名列表 */
+        .rank-panel {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 14, 0, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid #2a5a2a;
+            border-radius: 18px;
+            padding: 8px 18px;
+            color: #b0d0b0;
+            font-size: 0.82rem;
+            display: flex;
+            gap: 18px;
+            z-index: 10;
+            pointer-events: none;
+            white-space: nowrap;
+            overflow-x: auto;
+            max-width: 92%;
+        }
+        .rank-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            opacity: 0.85;
+            transition: all 0.2s;
+        }
+        .rank-item .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .rank-item.gold { color: #ffd700; font-size: 1rem; font-weight: bold; opacity: 1; }
+        .rank-item.gold .dot { width: 14px; height: 14px; box-shadow: 0 0 12px #ffd700; }
+        .rank-item.silver { color: #c0c0c0; font-size: 0.95rem; font-weight: bold; opacity: 1; }
+        .rank-item.silver .dot { width: 12px; height: 12px; box-shadow: 0 0 10px #c0c0c0; }
+        .rank-item.bronze { color: #cd7f32; font-size: 0.9rem; font-weight: bold; opacity: 1; }
+        .rank-item.bronze .dot { width: 11px; height: 11px; box-shadow: 0 0 8px #cd7f32; }
+        .rank-item .name { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+
+        /* 复活倒计时 */
+        .respawn-timer {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 4rem; font-weight: bold; color: #fff;
+            text-shadow: 0 0 30px #0f0, 0 0 60px #0f0;
+            pointer-events: none; z-index: 15; opacity: 0; transition: opacity 0.2s;
+        }
+        .respawn-timer.show { opacity: 1; }
+
+        /* 游戏结束 */
+        .game-over {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #1a1a1aee; backdrop-filter: blur(16px);
+            padding: 28px 50px; border-radius: 36px; text-align: center;
+            color: #f88; font-size: 1.8rem; font-weight: bold;
+            border: 2px solid #f66; box-shadow: 0 0 60px #f004;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 20; letter-spacing: 2px;
+        }
+        .game-over.show { opacity: 1; }
+        .game-over small { display: block; font-size: 0.9rem; color: #ccc; margin-top: 10px; font-weight: normal; }
+
+        /* 提示 */
+        .toast {
+            position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: #1a2a1aee; border: 1px solid #4a8a4a; color: #cfc;
+            padding: 8px 22px; border-radius: 40px; font-size: 0.85rem;
+            z-index: 30; opacity: 0; transition: opacity 0.3s;
+            pointer-events: none; white-space: nowrap;
+        }
+        .toast.show { opacity: 1; }
+        .help-text { color: #6a8a6a; font-size: 0.78rem; margin-top: 6px; }
+    </style>
+</head>
+<body>
+<div class="game-container" id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 开始界面 -->
+    <div class="screen" id="startScreen">
+        <h1>🐍 贪吃蛇 · 竞技进化</h1>
+        <div class="sub">全浮点运算 | 视锥剔除 | 90%面积吞噬</div>
+
+        <div class="btn-group">
+            <button class="btn primary" id="btnSingle">🎮 单机模式</button>
+            <button class="btn" id="btnOnline" disabled>🌐 联机真人（暂禁用）</button>
+            <button class="btn" id="btnAI">🤖 对战AI</button>
+        </div>
+
+        <!-- AI参数面板 -->
+        <div class="panel" id="aiPanel">
+            <h3>⚙️ 地图参数</h3>
+            <div class="param-grid">
+                <div class="param-item"><label>地图大小</label><input type="number" id="paramMapSize" value="5000" min="1000" max="10000" step="500"></div>
+                <div class="param-item"><label>AI数量</label><input type="number" id="paramAICount" value="14" min="1" max="40"></div>
+                <div class="param-item"><label>复活倒计时(秒)</label><input type="number" id="paramRespawn" value="3" min="0" max="15"></div>
+                <div class="param-item"><label>出生长度</label><input type="number" id="paramStartLen" value="4" min="2" max="20"></div>
+                <div class="param-item"><label>食物上限</label><input type="number" id="paramFoodCount" value="200" min="20" max="500"></div>
+                <div class="param-item"><label>玩家速度</label><input type="number" id="paramPlayerSpeed" value="140" min="40" max="300" step="10"></div>
+                <div class="param-item"><label>AI速度</label><input type="number" id="paramAISpeed" value="100" min="30" max="250" step="10"></div>
+                <div class="param-item"><label>加速倍率</label><input type="number" id="paramBoostMul" value="2" min="1.2" max="4" step="0.1"></div>
+            </div>
+            <div class="btn-group">
+                <button class="btn small" id="presetEasy">🟢 简单</button>
+                <button class="btn small" id="presetNormal">🟡 普通</button>
+                <button class="btn small" id="presetHard">🔴 困难</button>
+                <button class="btn small primary" id="btnStartAI">▶ 开始对战</button>
+            </div>
+        </div>
+
+        <div class="btn-group" style="margin-top:10px;">
+            <button class="btn small" id="btnResetCoins">🪙 系统金币：<span id="coinDisplay">0</span></button>
+        </div>
+        <div class="help-text" style="margin-top: 15px;">操作：鼠标指向移动方向；按住左键/空格键加速；包围食物可挤爆！</div>
+    </div>
+
+    <!-- 游戏内HUD -->
+    <div class="hud" id="gameHud" style="display:none;">
+        🍎 <span id="scoreDisplay">0</span>
+        <span class="len">📏 <span id="lengthDisplay">4.0</span></span>
+        <span class="coin">🪙 <span id="hudCoinDisplay">0</span></span>
+    </div>
+
+    <!-- 小地图 -->
+    <div class="minimap" id="minimap" style="display:none;">
+        <canvas id="minimapCanvas" width="150" height="150"></canvas>
+    </div>
+
+    <!-- 排名面板 -->
+    <div class="rank-panel" id="rankPanel" style="display:none;"></div>
+
+    <!-- 复活倒计时 -->
+    <div class="respawn-timer" id="respawnTimer"></div>
+
+    <!-- 游戏结束 -->
+    <div class="game-over" id="gameOverMsg">💀 死亡 <small id="gameOverDetail">按 R 重新开始</small></div>
+
+    <!-- 提示 -->
+    <div class="toast" id="toast"></div>
+</div>
+
+<script>
+    (function() {
+        // ========== 全局状态 ==========
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const minimapCanvas = document.getElementById('minimapCanvas');
+        const mctx = minimapCanvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const aiPanel = document.getElementById('aiPanel');
+        const gameHud = document.getElementById('gameHud');
+        const minimapDiv = document.getElementById('minimap');
+        const rankPanel = document.getElementById('rankPanel');
+        const gameOverDiv = document.getElementById('gameOverMsg');
+        const gameOverDetail = document.getElementById('gameOverDetail');
+        const respawnTimerDiv = document.getElementById('respawnTimer');
+        const toastDiv = document.getElementById('toast');
+
+        const scoreSpan = document.getElementById('scoreDisplay');
+        const lengthSpan = document.getElementById('lengthDisplay');
+        const hudCoinSpan = document.getElementById('hudCoinDisplay');
+        const coinDisplay = document.getElementById('coinDisplay');
+
+        let config = {
+            mapSize: 5000,
+            aiCount: 14,
+            respawnTime: 3,
+            startLength: 4,
+            maxFoodCount: 200, // 食物上限
+            playerSpeed: 140,
+            aiSpeed: 100,
+            boostMul: 2,
+        };
+
+        let gameMode = null;
+        let isCompetitive = false;
+        const CELL_SIZE = 20;
+        const BOUNDARY_WIDTH = 40; // 红色边界宽度
+
+        let player = {
+            segments: [],
+            alive: true,
+            dir: { x: 1, y: 0 },
+            targetDir: { x: 1, y: 0 },
+            color: '#7cfc7c',
+            segmentSpacing: CELL_SIZE * 0.8,
+            respawnTimer: 0,
+            invincibleTimer: 0,
+            boostActive: false,
+            boostConsumeAccum: 0,
+            isMouseControl: false,
+            growthAccum: 0, // 浮点累积生长值
+            trueLength: 4.0 // 纯浮点记录长度，用于精确判定
+        };
+
+        let enemies = [];
+        let foods = []; // 食物结构: {x, y, value}
+
+        // 系统金币
+        let systemCoins = 0;
+        try {
+            systemCoins = parseInt(localStorage.getItem('snakeCoins') || '0');
+            if (isNaN(systemCoins)) systemCoins = 0;
+        } catch(e) {}
+        coinDisplay.textContent = systemCoins;
+        hudCoinSpan.textContent = systemCoins;
+
+        let camera = { x: 0, y: 0, viewRadius: 14 };
+        let score = 0;
+        let gameActive = false;
+        let gameLoopId = null;
+        let lastTimestamp = 0;
+
+        let mouseWorldPos = { x: 0, y: 0 };
+        let isMouseDown = false;
+
+        // ========== 工具函数 ==========
+        function randomFloat(min, max) { return Math.random() * (max - min) + min; }
+        function distance(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return Math.sqrt(dx*dx + dy*dy); }
+
+        function toast(msg, duration = 1800) {
+            toastDiv.textContent = msg;
+            toastDiv.classList.add('show');
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => toastDiv.classList.remove('show'), duration);
+        }
+
+        function updateCoinDisplay() {
+            coinDisplay.textContent = systemCoins;
+            hudCoinSpan.textContent = systemCoins;
+        }
+
+        function useCoin() {
+            if (systemCoins > 0) {
+                systemCoins--;
+                try { localStorage.setItem('snakeCoins', systemCoins); } catch(e) {}
+                updateCoinDisplay();
+                return true;
+            }
+            return false;
+        }
+
+        // ========== 初始化 ==========
+        function setupConfigFromPanel() {
+            try {
+                config.mapSize = Math.max(1000, Math.min(10000, parseInt(document.getElementById('paramMapSize').value) || 5000));
+                config.aiCount = Math.max(1, Math.min(40, parseInt(document.getElementById('paramAICount').value) || 14));
+                config.respawnTime = Math.max(0, Math.min(15, parseFloat(document.getElementById('paramRespawn').value) || 3));
+                config.startLength = Math.max(2, Math.min(20, parseInt(document.getElementById('paramStartLen').value) || 4));
+                config.maxFoodCount = Math.max(20, Math.min(500, parseInt(document.getElementById('paramFoodCount').value) || 200));
+                config.playerSpeed = Math.max(40, Math.min(300, parseInt(document.getElementById('paramPlayerSpeed').value) || 140));
+                config.aiSpeed = Math.max(30, Math.min(250, parseInt(document.getElementById('paramAISpeed').value) || 100));
+                config.boostMul = Math.max(1.2, Math.min(4, parseFloat(document.getElementById('paramBoostMul').value) || 2));
+            } catch(e) {}
+        }
+
+        function initGame(mode) {
+            try {
+                gameMode = mode;
+                isCompetitive = (mode === 'ai');
+
+                if (mode === 'ai') {
+                    setupConfigFromPanel();
+                } else {
+                    config.mapSize = 5000;
+                    config.aiCount = 0;
+                    config.respawnTime = 0;
+                    config.startLength = 4;
+                    config.maxFoodCount = 200;
+                    config.playerSpeed = 140;
+                    config.aiSpeed = 100;
+                    config.boostMul = 2;
+                }
+
+                const startX = config.mapSize / 2;
+                const startY = config.mapSize / 2;
+                
+                player.segments = createSnakeSegments(startX, startY, { x: 1, y: 0 }, config.startLength, player.segmentSpacing);
+                player.alive = true;
+                player.dir = { x: 1, y: 0 };
+                player.targetDir = { x: 1, y: 0 };
+                player.respawnTimer = 0;
+                player.invincibleTimer = 0;
+                player.boostActive = false;
+                player.boostConsumeAccum = 0;
+                player.isMouseControl = false;
+                player.growthAccum = 0;
+                player.trueLength = config.startLength;
+
+                enemies = [];
+                if (mode === 'ai') {
+                    for (let i = 0; i < config.aiCount; i++) spawnEnemy();
+                }
+
+                foods = [];
+                for (let i = 0; i < config.maxFoodCount / 2; i++) spawnFood();
+
+                score = 0;
+                scoreSpan.textContent = '0';
+                lengthSpan.textContent = player.trueLength.toFixed(1);
+                gameActive = true;
+                gameOverDiv.classList.remove('show');
+                respawnTimerDiv.classList.remove('show');
+
+                camera = { x: startX, y: startY, viewRadius: 14 };
+                updateCamera(true);
+
+                startScreen.style.display = 'none';
+                gameHud.style.display = 'flex';
+                minimapDiv.style.display = 'block';
+                rankPanel.style.display = isCompetitive ? 'flex' : 'none';
+
+                lastTimestamp = 0;
+                mouseWorldPos = { x: startX + 100, y: startY };
+                isMouseDown = false;
+            } catch (err) {
+                console.error("初始化错误:", err);
+                startScreen.style.display = 'none';
+                gameHud.style.display = 'flex';
+                minimapDiv.style.display = 'block';
+                rankPanel.style.display = 'flex';
+                gameActive = true;
+                lastTimestamp = 0;
+            }
+        }
+
+        function createSnakeSegments(startX, startY, dir, length, spacing) {
+            const segs = [];
+            const backDir = { x: -dir.x, y: -dir.y };
+            for (let i = 0; i < length; i++) {
+                segs.push({ x: startX + backDir.x * i * spacing, y: startY + backDir.y * i * spacing });
+            }
+            return segs;
+        }
+
+        function spawnEnemy() {
+            const playerHead = (player.alive && player.segments.length > 0) ? player.segments[0] : { x: config.mapSize/2, y: config.mapSize/2 };
+            let startX, startY, attempts = 0;
+            do {
+                startX = BOUNDARY_WIDTH + randomFloat(0, config.mapSize - BOUNDARY_WIDTH * 2);
+                startY = BOUNDARY_WIDTH + randomFloat(0, config.mapSize - BOUNDARY_WIDTH * 2);
+                attempts++;
+                if (attempts > 2000) break;
+            } while (distance(startX, startY, playerHead.x, playerHead.y) < 500 ||
+                     isPositionNearSnake(startX, startY, CELL_SIZE * 2));
+
+            const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+            const dir = dirs[Math.floor(Math.random() * dirs.length)];
+            const len = randomFloat(4, 8);
+            const spacing = CELL_SIZE * 0.8;
+            const segments = createSnakeSegments(startX, startY, dir, len, spacing);
+
+            const hue = randomFloat(0, 30);
+            const color = `hsl(${hue}, 85%, 60%)`;
+
+            enemies.push({
+                segments,
+                dir: { ...dir },
+                targetDir: { ...dir },
+                alive: true,
+                color,
+                speed: config.aiSpeed * randomFloat(0.85, 1.15),
+                segmentSpacing: spacing,
+                boostConsumeAccum: 0,
+                invincibleTimer: 0,
+                respawnTimer: 0,
+                isAI: true,
+                id: Math.random(),
+                name: 'AI-' + Math.floor(Math.random() * 900 + 100),
+                growthAccum: 0,
+                trueLength: len,
+                aiTimer: 0,
+            });
+        }
+
+        // 智能生成食物：优先在不密集的地方
+        function spawnFood() {
+            if (foods.length >= config.maxFoodCount) return;
+            
+            let bestX = 0, bestY = 0, minDensity = Infinity;
+            for (let i = 0; i < 8; i++) {
+                const wx = BOUNDARY_WIDTH + randomFloat(0, config.mapSize - BOUNDARY_WIDTH * 2);
+                const wy = BOUNDARY_WIDTH + randomFloat(0, config.mapSize - BOUNDARY_WIDTH * 2);
+                let density = 0;
+                for (let f of foods) {
+                    if (distance(wx, wy, f.x, f.y) < 200) density += f.value;
+                }
+                if (density < minDensity) {
+                    minDensity = density;
+                    bestX = wx;
+                    bestY = wy;
+                }
+            }
+            foods.push({ x: bestX, y: bestY, value: 1.0 });
+        }
+
+        // 掉落食物：如果周围有食物则合并，否则判断上限后生成
+        function dropFood(wx, wy, value) {
+            if (value <= 0) return;
+            // 寻找周围最近的食物合并
+            let nearest = null;
+            let minDist = Infinity;
+            for (let f of foods) {
+                const d = distance(wx, wy, f.x, f.y);
+                if (d < minDist && d < 60) {
+                    minDist = d;
+                    nearest = f;
+                }
+            }
+            if (nearest) {
+                nearest.value += value;
+                return;
+            }
+            if (foods.length < config.maxFoodCount) {
+                foods.push({ x: wx, y: wy, value: value });
+            }
+        }
+
+        function isPositionNearSnake(wx, wy, minDist = CELL_SIZE * 1.5) {
+            if (player.alive) {
+                for (let seg of player.segments) {
+                    if (distance(wx, wy, seg.x, seg.y) < minDist) return true;
+                }
+            }
+            for (let e of enemies) {
+                if (!e.alive) continue;
+                for (let seg of e.segments) {
+                    if (distance(wx, wy, seg.x, seg.y) < minDist) return true;
+                }
+            }
+            return false;
+        }
+
+        // ========== 移动与物理逻辑 ==========
+        function smoothDirection(current, target, factor) {
+            const len = Math.sqrt(target.x**2 + target.y**2);
+            if (len < 0.001) return { ...current };
+            const tx = target.x / len, ty = target.y / len;
+            const cx = current.x + (tx - current.x) * factor;
+            const cy = current.y + (ty - current.y) * factor;
+            const clen = Math.sqrt(cx*cx + cy*cy);
+            if (clen < 0.001) return { ...current };
+            return { x: cx/clen, y: cy/clen };
+        }
+
+        function updateSnakeMovement(snake, deltaSec, baseSpeed) {
+            if (!snake.alive && !snake.respawnTimer) return;
+
+            if (!snake.alive && snake.respawnTimer > 0) {
+                snake.respawnTimer -= deltaSec;
+                if (snake.respawnTimer <= 0) respawnSnake(snake);
+                return;
+            }
+            if (!snake.alive) return;
+
+            if (snake.invincibleTimer > 0) snake.invincibleTimer -= deltaSec;
+
+            let speed = baseSpeed;
+            if (snake === player && player.boostActive) speed *= config.boostMul;
+            if (snake.isAI && snake.boostActive) speed *= config.boostMul;
+
+            snake.dir = smoothDirection(snake.dir, snake.targetDir, 0.25);
+
+            const head = snake.segments[0];
+            const moveDist = speed * deltaSec;
+            let newHeadX = head.x + snake.dir.x * moveDist;
+            let newHeadY = head.y + snake.dir.y * moveDist;
+
+            // 边界检测
+            if (snake === player) {
+                if (player.invincibleTimer <= 0) {
+                    if (newHeadX < BOUNDARY_WIDTH || newHeadX > config.mapSize - BOUNDARY_WIDTH ||
+                        newHeadY < BOUNDARY_WIDTH || newHeadY > config.mapSize - BOUNDARY_WIDTH) {
+                        killPlayer(false); // 撞墙死亡
+                        return;
+                    }
+                }
+                newHeadX = Math.max(BOUNDARY_WIDTH, Math.min(config.mapSize - BOUNDARY_WIDTH, newHeadX));
+                newHeadY = Math.max(BOUNDARY_WIDTH, Math.min(config.mapSize - BOUNDARY_WIDTH, newHeadY));
+            } else {
+                if (newHeadX < BOUNDARY_WIDTH || newHeadX > config.mapSize - BOUNDARY_WIDTH ||
+                    newHeadY < BOUNDARY_WIDTH || newHeadY > config.mapSize - BOUNDARY_WIDTH) {
+                    killEnemy(snake);
+                    return;
+                }
+            }
+
+            snake.segments[0] = { x: newHeadX, y: newHeadY };
+
+            const spacing = snake.segmentSpacing;
+            for (let i = 1; i < snake.segments.length; i++) {
+                const prev = snake.segments[i-1];
+                const cur = snake.segments[i];
+                const dx = cur.x - prev.x, dy = cur.y - prev.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist > spacing) {
+                    const ratio = spacing / dist;
+                    cur.x = prev.x + dx * ratio;
+                    cur.y = prev.y + dy * ratio;
+                } else if (dist < spacing * 0.2) {
+                    cur.x = prev.x + randomFloat(-0.5, 0.5);
+                    cur.y = prev.y + randomFloat(-0.5, 0.5);
+                }
+            }
+        }
+
+        function respawnSnake(snake) {
+            const isPlayer = (snake === player);
+            const startX = BOUNDARY_WIDTH + randomFloat(0, config.mapSize - BOUNDARY_WIDTH * 2);
+            const startY = BOUNDARY_WIDTH + randomFloat(0, config.mapSize - BOUNDARY_WIDTH * 2);
+            const dir = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}][Math.floor(Math.random() * 4)];
+
+            if (isPlayer) {
+                // 倒计时复活，保留一半长度，不掉食物
+                const keepLen = Math.max(2.0, snake._deathLength * 0.5);
+                const spawnX = snake._deathPos ? snake._deathPos.x : startX;
+                const spawnY = snake._deathPos ? snake._deathPos.y : startY;
+                snake.segments = createSnakeSegments(spawnX, spawnY, dir, Math.floor(keepLen), snake.segmentSpacing);
+                snake.trueLength = keepLen;
+                snake.growthAccum = 0;
+                snake.dir = { ...dir };
+                snake.targetDir = { ...dir };
+                snake.alive = true;
+                snake.invincibleTimer = 5;
+                player.boostActive = false;
+            } else {
+                // AI重生，从初始长度开始，没有无损复活
+                const initLen = 4.0;
+                snake.segments = createSnakeSegments(startX, startY, dir, Math.floor(initLen), snake.segmentSpacing);
+                snake.trueLength = initLen;
+                snake.growthAccum = 0;
+                snake.dir = { ...dir };
+                snake.targetDir = { ...dir };
+                snake.alive = true;
+                snake.invincibleTimer = 2;
+                snake.boostActive = false;
+            }
+        }
+
+        // 吞噬判定
+        function handleEat(snake, isPlayer) {
+            if (!snake.alive) return;
+            const head = snake.segments[0];
+            const eatR = 35; // 吸附半径
+
+            for (let i = foods.length - 1; i >= 0; i--) {
+                const f = foods[i];
+                if (distance(head.x, head.y, f.x, f.y) < eatR) {
+                    foods.splice(i, 1);
+                    if (isPlayer) {
+                        score += Math.floor(f.value);
+                        scoreSpan.textContent = score;
+                    }
+                    // 浮点生长累积
+                    snake.growthAccum += f.value;
+                    while (snake.growthAccum >= 1.0 && snake.segments.length < 300) {
+                        snake.growthAccum -= 1.0;
+                        const tail = snake.segments[snake.segments.length - 1];
+                        const prevTail = snake.segments[snake.segments.length - 2] || tail;
+                        let dx = tail.x - prevTail.x, dy = tail.y - prevTail.y;
+                        const len = Math.sqrt(dx*dx + dy*dy);
+                        if (len > 0.001) { dx /= len; dy /= len; } else { dx = -snake.dir.x; dy = -snake.dir.y; }
+                        snake.segments.push({ x: tail.x + dx * snake.segmentSpacing, y: tail.y + dy * snake.segmentSpacing });
+                    }
+                    snake.trueLength += f.value;
+                    if (isPlayer) lengthSpan.textContent = snake.trueLength.toFixed(1);
+                }
+            }
+        }
+
+        // 加速损耗（浮点数）
+        function processBoostConsume(snake, deltaSec, isPlayer) {
+            if (!snake.alive) return;
+            if (!snake.boostActive) { snake.boostConsumeAccum = 0; return; }
+
+            snake.boostConsumeAccum += deltaSec;
+            if (snake.boostConsumeAccum >= 1.0) {
+                snake.boostConsumeAccum -= 1.0;
+                if (Math.random() < 0.2) {
+                    const lossValue = Math.max(0.1, snake.trueLength * 0.03); // 浮点损失
+                    if (snake.trueLength > 2.0 + lossValue) {
+                        snake.trueLength -= lossValue;
+                        // 随机移除尾部节段
+                        const removeCount = Math.floor(lossValue * 0.5) + (Math.random() < (lossValue % 1) ? 1 : 0);
+                        for (let i = 0; i < removeCount; i++) {
+                            if (snake.segments.length > 2) {
+                                const removed = snake.segments.pop();
+                                // 随机洒落
+                                const angle = randomFloat(0, Math.PI * 2);
+                                const dist = CELL_SIZE * randomFloat(1, 3);
+                                let fx = removed.x + Math.cos(angle) * dist;
+                                let fy = removed.y + Math.sin(angle) * dist;
+                                fx = Math.max(BOUNDARY_WIDTH + 10, Math.min(config.mapSize - BOUNDARY_WIDTH - 10, fx));
+                                fy = Math.max(BOUNDARY_WIDTH + 10, Math.min(config.mapSize - BOUNDARY_WIDTH - 10, fy));
+                                dropFood(fx, fy, lossValue / removeCount); // 掉落价值
+                            }
+                        }
+                        if (isPlayer) {
+                            lengthSpan.textContent = snake.trueLength.toFixed(1);
+                            toast(`⚡ 加速损耗 ${lossValue.toFixed(1)} 长度`, 1000);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 碰撞检测
+        function checkCollisions() {
+            if (player.alive && player.invincibleTimer <= 0) {
+                const pHead = player.segments[0];
+                for (let e of enemies) {
+                    if (!e.alive) continue;
+                    for (let seg of e.segments) {
+                        if (distance(pHead.x, pHead.y, seg.x, seg.y) < CELL_SIZE * 0.75) {
+                            killPlayer(false);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            if (gameMode === 'single' && player.alive && player.invincibleTimer <= 0) {
+                const head = player.segments[0];
+                for (let i = 1; i < player.segments.length; i++) {
+                    if (distance(head.x, head.y, player.segments[i].x, player.segments[i].y) < CELL_SIZE * 0.7) {
+                        killPlayer(false);
+                        return;
+                    }
+                }
+            }
+
+            for (let i = 0; i < enemies.length; i++) {
+                const e = enemies[i];
+                if (!e.alive) continue;
+                const eHead = e.segments[0];
+
+                if (player.alive) {
+                    let hit = false;
+                    for (let seg of player.segments) {
+                        if (distance(eHead.x, eHead.y, seg.x, seg.y) < CELL_SIZE * 0.75) {
+                            hit = true; break;
+                        }
+                    }
+                    if (hit) {
+                        killEnemy(e);
+                        continue;
+                    }
+                }
+
+                for (let j = 0; j < enemies.length; j++) {
+                    if (i === j) continue;
+                    const other = enemies[j];
+                    if (!other.alive) continue;
+                    for (let seg of other.segments) {
+                        if (distance(eHead.x, eHead.y, seg.x, seg.y) < CELL_SIZE * 0.75) {
+                            killEnemy(e);
+                            break;
+                        }
+                    }
+                    if (!e.alive) break;
+                }
+            }
+        }
+
+        // 身体推开食物（浮点计算）
+        function pushFoods() {
+            for (let f of foods) {
+                let pushX = 0, pushY = 0;
+                let count = 0;
+                const allSegs = [];
+                if (player.alive) allSegs.push(...player.segments);
+                for (let e of enemies) {
+                    if (e.alive) allSegs.push(...e.segments);
+                }
+                for (let seg of allSegs) {
+                    const dx = f.x - seg.x;
+                    const dy = f.y - seg.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const pushThreshold = CELL_SIZE * 1.2;
+                    if (dist < pushThreshold && dist > 0.001) {
+                        const force = (pushThreshold - dist) * 0.8;
+                        pushX += (dx / dist) * force;
+                        pushY += (dy / dist) * force;
+                        count++;
+                    }
+                }
+                if (count > 0) {
+                    f.x += pushX;
+                    f.y += pushY;
+                    f.x = Math.max(BOUNDARY_WIDTH + 10, Math.min(config.mapSize - BOUNDARY_WIDTH - 10, f.x));
+                    f.y = Math.max(BOUNDARY_WIDTH + 10, Math.min(config.mapSize - BOUNDARY_WIDTH - 10, f.y));
+                }
+            }
+        }
+
+        // 90% 面积包围检测
+        function checkFoodCrush() {
+            for (let i = foods.length - 1; i >= 0; i--) {
+                const f = foods[i];
+                let surroundingSnake = null;
+
+                const allSnakes = [];
+                if (player.alive) allSnakes.push(player);
+                for (let e of enemies) {
+                    if (e.alive) allSnakes.push(e);
+                }
+
+                for (let snake of allSnakes) {
+                    if (isSurrounded90(snake, f)) {
+                        surroundingSnake = snake;
+                        break;
+                    }
+                }
+
+                if (surroundingSnake) {
+                    foods.splice(i, 1);
+                    const growRate = 0.8 * f.value; // 80% 成长率
+                    const isPlayer = (surroundingSnake === player);
+                    
+                    surroundingSnake.growthAccum += growRate;
+                    surroundingSnake.trueLength += growRate;
+                    
+                    while (surroundingSnake.growthAccum >= 1.0) {
+                        surroundingSnake.growthAccum -= 1.0;
+                        const tail = surroundingSnake.segments[surroundingSnake.segments.length - 1];
+                        const prevTail = surroundingSnake.segments[surroundingSnake.segments.length - 2] || tail;
+                        let dx = tail.x - prevTail.x, dy = tail.y - prevTail.y;
+                        const len = Math.sqrt(dx*dx + dy*dy);
+                        if (len > 0.001) { dx /= len; dy /= len; } else { dx = -surroundingSnake.dir.x; dy = -surroundingSnake.dir.y; }
+                        surroundingSnake.segments.push({ x: tail.x + dx * surroundingSnake.segmentSpacing, y: tail.y + dy * surroundingSnake.segmentSpacing });
+                    }
+                    
+                    if (isPlayer) {
+                        lengthSpan.textContent = player.trueLength.toFixed(1);
+                        toast('💥 围困挤爆食物！吸收 80% 成长', 1200);
+                    }
+                }
+            }
+        }
+
+        // 局部网格采样判定面积：使用 4x4 采点（共16个点），检查食物周围 40x40 的区域
+        function isSurrounded90(snake, food) {
+            const checkRadius = 24; // 检测半径
+            const gridN = 4; // 4x4网格
+            const step = (checkRadius * 2) / (gridN - 1);
+            let covered = 0;
+            const totalPoints = gridN * gridN;
+
+            // 缓存蛇段用于快速计算
+            const segs = snake.segments;
+
+            for (let gx = 0; gx < gridN; gx++) {
+                for (let gy = 0; gy < gridN; gy++) {
+                    const px = food.x - checkRadius + gx * step;
+                    const py = food.y - checkRadius + gy * step;
+                    
+                    let isCovered = false;
+                    for (let seg of segs) {
+                        // 如果采样点在蛇身节点附近 (CELL_SIZE * 0.7 范围内)
+                        if (distance(px, py, seg.x, seg.y) < CELL_SIZE * 0.7) {
+                            isCovered = true;
+                            break;
+                        }
+                    }
+                    if (isCovered) covered++;
+                }
+            }
+            // 如果覆盖率 >= 90% (16 * 0.9 = 14.4 -> 14个点)
+            return covered >= Math.floor(totalPoints * 0.9);
+        }
+
+        function killPlayer(usedCoin) {
+            if (!player.alive) return;
+            player._deathLength = player.trueLength;
+            player._deathPos = { ...player.segments[0] };
+            player.alive = false;
+            player.boostActive = false;
+
+            if (gameMode === 'single') {
+                gameActive = false;
+                gameOverDiv.classList.add('show');
+                gameOverDetail.textContent = '按 R 重新开始';
+                return;
+            }
+
+            // 掉落死亡惩罚食物（撞死掉落，用金币无损不掉落）
+            if (!usedCoin) {
+                const dropValue = player.trueLength * 0.5; // 撞击死亡掉落一半
+                if (dropValue > 0) {
+                    const head = player._deathPos;
+                    for (let i = 0; i < 5; i++) {
+                        const angle = randomFloat(0, Math.PI * 2);
+                        const dist = CELL_SIZE * randomFloat(1, 4);
+                        dropFood(head.x + Math.cos(angle) * dist, head.y + Math.sin(angle) * dist, dropValue / 5);
+                    }
+                }
+            }
+
+            if (systemCoins > 0) {
+                useCoin();
+                toast('🪙 使用金币无损复活！', 2000);
+                player.respawnTimer = config.respawnTime;
+                respawnTimerDiv.classList.add('show');
+                respawnTimerDiv.textContent = Math.ceil(player.respawnTimer);
+            } else {
+                player.respawnTimer = config.respawnTime;
+                respawnTimerDiv.classList.add('show');
+                respawnTimerDiv.textContent = Math.ceil(player.respawnTimer);
+                toast('💀 没有金币，等待复活（长度减半）...', 2000);
+            }
+        }
+
+        // AI 死亡必掉食物
+        function killEnemy(enemy) {
+            if (!enemy.alive) return;
+            const dropValue = enemy.trueLength * 0.3; // AI 掉 30%
+            const head = enemy.segments[0];
+            for (let i = 0; i < 4; i++) {
+                const angle = randomFloat(0, Math.PI * 2);
+                const dist = CELL_SIZE * randomFloat(1, 3);
+                let wx = head.x + Math.cos(angle) * dist;
+                let wy = head.y + Math.sin(angle) * dist;
+                wx = Math.max(BOUNDARY_WIDTH + 10, Math.min(config.mapSize - BOUNDARY_WIDTH - 10, wx));
+                wy = Math.max(BOUNDARY_WIDTH + 10, Math.min(config.mapSize - BOUNDARY_WIDTH - 10, wy));
+                dropFood(wx, wy, dropValue / 4);
+            }
+            enemy._deathLength = enemy.trueLength;
+            enemy.alive = false;
+            enemy.respawnTimer = config.respawnTime + randomFloat(0, 2);
+        }
+
+        // ========== AI 智能决策 ==========
+        function updateAI(enemy, deltaSec) {
+            if (!enemy.alive) return;
+            enemy.aiTimer = (enemy.aiTimer || 0) + deltaSec;
+            if (enemy.aiTimer < 0.1) return; // 每100ms决策一次
+            enemy.aiTimer = 0;
+
+            const head = enemy.segments[0];
+
+            let nearestFood = null;
+            let minFoodDist = Infinity;
+            for (let f of foods) {
+                const d = distance(head.x, head.y, f.x, f.y);
+                if (d < minFoodDist) { minFoodDist = d; nearestFood = f; }
+            }
+
+            const dirs = [
+                {x:1, y:0}, {x:-1, y:0}, {x:0, y:1}, {x:0, y:-1},
+                {x:0.707, y:0.707}, {x:-0.707, y:0.707}, {x:0.707, y:-0.707}, {x:-0.707, y:-0.707}
+            ];
+            let bestDir = enemy.dir;
+            let bestScore = -Infinity;
+
+            for (let d of dirs) {
+                const nx = head.x + d.x * 80;
+                const ny = head.y + d.y * 80;
+                
+                if (nx < BOUNDARY_WIDTH + 30 || nx > config.mapSize - BOUNDARY_WIDTH - 30 ||
+                    ny < BOUNDARY_WIDTH + 30 || ny > config.mapSize - BOUNDARY_WIDTH - 30) {
+                    continue;
+                }
+                
+                let score = 0;
+                if (nearestFood) {
+                    score -= distance(nx, ny, nearestFood.x, nearestFood.y) * 0.5;
+                }
+                
+                let danger = 0;
+                const checkPoints = [
+                    {x: head.x + d.x * 40, y: head.y + d.y * 40},
+                    {x: head.x + d.x * 80, y: head.y + d.y * 80}
+                ];
+                for (let p of checkPoints) {
+                    for (let other of enemies) {
+                        if (other === enemy || !other.alive) continue;
+                        for (let seg of other.segments) {
+                            if (distance(p.x, p.y, seg.x, seg.y) < CELL_SIZE * 1.5) {
+                                danger += 15;
+                                break;
+                            }
+                        }
+                    }
+                    if (player.alive) {
+                        for (let seg of player.segments) {
+                            if (distance(p.x, p.y, seg.x, seg.y) < CELL_SIZE * 1.5) {
+                                danger += 25;
+                                break;
+                            }
+                        }
+                    }
+                }
+                score -= danger;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestDir = d;
+                }
+            }
+            enemy.targetDir = bestDir;
+        }
+
+        // ========== 相机与渲染 ==========
+        function getMouseWorldPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            const sx = (clientX - rect.left) / rect.width * canvas.width;
+            const sy = (clientY - rect.top) / rect.height * canvas.height;
+            
+            const viewPixelRadius = camera.viewRadius * CELL_SIZE;
+            const scale = canvas.width / (viewPixelRadius * 2);
+            const wx = (sx / scale) - viewPixelRadius + camera.x;
+            const wy = (sy / scale) - viewPixelRadius + camera.y;
+            return { x: wx, y: wy };
+        }
+
+        function updateMouseDirection() {
+            if (!player.alive || !gameActive) return;
+            const head = player.segments[0];
+            const dx = mouseWorldPos.x - head.x;
+            const dy = mouseWorldPos.y - head.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > 10) {
+                player.targetDir = { x: dx / dist, y: dy / dist };
+                player.isMouseControl = true;
+            }
+        }
+
+        function updateCamera() {
+            if (!player.alive || player.segments.length === 0) return;
+            const len = player.trueLength;
+            let targetRadius = Math.min(50, 14 + Math.floor(len * 0.6));
+            if (isNaN(targetRadius)) targetRadius = 14;
+            
+            camera.viewRadius += (targetRadius - camera.viewRadius) * 0.12;
+            if (isNaN(camera.viewRadius) || camera.viewRadius <= 0) camera.viewRadius = 14;
+
+            const head = player.segments[0];
+            camera.x = head.x;
+            camera.y = head.y;
+
+            let size = Math.ceil(camera.viewRadius * CELL_SIZE * 2);
+            if (isNaN(size) || size <= 0) size = 560;
+
+            canvas.width = size;
+            canvas.height = size;
+        }
+
+        function render() {
+            let viewPixelRadius = camera.viewRadius * CELL_SIZE;
+            const camX = camera.x, camY = camera.y;
+            let scale = canvas.width / (viewPixelRadius * 2);
+
+            // 视锥剔除范围计算
+            const viewLeft = camX - viewPixelRadius;
+            const viewRight = camX + viewPixelRadius;
+            const viewTop = camY - viewPixelRadius;
+            const viewBottom = camY + viewPixelRadius;
+            const margin = 100; // 冗余边界
+
+            function w2s(wx, wy) {
+                return {
+                    x: (wx - camX + viewPixelRadius) * scale,
+                    y: (wy - camY + viewPixelRadius) * scale,
+                };
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#0a1a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 背景线条（略）
+            ctx.save();
+            ctx.strokeStyle = '#122212';
+            ctx.lineWidth = 1.2;
+            const patternSize = 160;
+            const startWX = Math.floor((camX - viewPixelRadius) / patternSize) * patternSize;
+            const endWX = camX + viewPixelRadius;
+            const startWY = Math.floor((camY - viewPixelRadius) / patternSize) * patternSize;
+            const endWY = camY + viewPixelRadius;
+            for (let wx = startWX; wx <= endWX; wx += patternSize) {
+                for (let wy = startWY; wy <= endWY; wy += patternSize) {
+                    const seed = ((wx * 73 + wy * 137) % 1000) / 1000;
+                    const s1 = w2s(wx + seed * 40, wy + seed * 80);
+                    const s2 = w2s(wx + 80 + seed * 40, wy + 120);
+                    if (s1.x > -50 && s1.x < canvas.width + 50 && s1.y > -50 && s1.y < canvas.height + 50) {
+                        ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.stroke();
+                    }
+                }
+            }
+            ctx.restore();
+
+            // 边界
+            const bw = BOUNDARY_WIDTH;
+            ctx.fillStyle = 'rgba(255, 40, 40, 0.25)';
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 2;
+            let tl = w2s(0, 0), tr = w2s(config.mapSize, bw), bl = w2s(0, config.mapSize - bw), br = w2s(config.mapSize, config.mapSize);
+            let lt = w2s(0, 0), lb = w2s(bw, config.mapSize), rt = w2s(config.mapSize - bw, 0), rb = w2s(config.mapSize, config.mapSize);
+            ctx.fillRect(tl.x, tl.y, tr.x - tl.x, tr.y - tl.y);
+            ctx.fillRect(bl.x, bl.y, br.x - bl.x, br.y - bl.y);
+            ctx.fillRect(lt.x, lt.y, lb.x - lt.x, lb.y - lt.y);
+            ctx.fillRect(rt.x, rt.y, rb.x - rt.x, rb.y - rt.y);
+
+            // 渲染食物（带剔除）
+            for (let f of foods) {
+                if (f.x < viewLeft - margin || f.x > viewRight + margin || 
+                    f.y < viewTop - margin || f.y > viewBottom + margin) continue;
+
+                const s = w2s(f.x, f.y);
+                // 食物大小由价值决定
+                const baseRadius = CELL_SIZE * 0.4;
+                const radius = Math.max(3, (baseRadius + Math.min(f.value, 5) * 1.5) * scale);
+                ctx.shadowColor = '#ffd966';
+                ctx.shadowBlur = 12 * scale;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffd966';
+                ctx.fill();
+                
+                // 大于1的食物中心加个高亮
+                if (f.value > 1.2) {
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, radius * 0.5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff';
+                    ctx.fill();
+                }
+            }
+            ctx.shadowBlur = 0;
+
+            // 渲染敌人（带剔除）
+            for (let e of enemies) {
+                if (!e.alive) continue;
+                // 粗判整条蛇是否在视野外
+                let inView = false;
+                for (let seg of e.segments) {
+                    if (seg.x > viewLeft - margin && seg.x < viewRight + margin && 
+                        seg.y > viewTop - margin && seg.y < viewBottom + margin) {
+                        inView = true; break;
+                    }
+                }
+                if (!inView) continue;
+
+                const blink = e.invincibleTimer > 0 && Math.floor(Date.now() / 100) % 2 === 0;
+                for (let i = e.segments.length - 1; i >= 0; i--) {
+                    const seg = e.segments[i];
+                    if (seg.x < viewLeft - margin || seg.x > viewRight + margin || 
+                        seg.y < viewTop - margin || seg.y > viewBottom + margin) continue;
+                        
+                    const s = w2s(seg.x, seg.y);
+                    const size = CELL_SIZE * scale;
+                    const x = s.x - size/2, y = s.y - size/2;
+                    ctx.fillStyle = blink ? '#ffffff' : (i === 0 ? '#ff8c8c' : e.color);
+                    ctx.shadowColor = e.color;
+                    ctx.shadowBlur = (i === 0 ? 16 : 8) * scale;
+                    ctx.fillRect(x+1, y+1, size-2, size-2);
+                }
+            }
+
+            // 渲染玩家
+            if (player.alive) {
+                const blink = player.invincibleTimer > 0 && Math.floor(Date.now() / 150) % 2 === 0;
+                const alpha = blink ? 0.5 : 1;
+                for (let i = player.segments.length - 1; i >= 0; i--) {
+                    const seg = player.segments[i];
+                    if (seg.x < viewLeft - margin || seg.x > viewRight + margin || 
+                        seg.y < viewTop - margin || seg.y > viewBottom + margin) continue;
+
+                    const s = w2s(seg.x, seg.y);
+                    const size = CELL_SIZE * scale;
+                    const x = s.x - size/2, y = s.y - size/2;
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = i === 0 ? '#b5ffb5' : '#7cfc7c';
+                    ctx.shadowColor = '#7cfc7c';
+                    ctx.shadowBlur = (i === 0 ? 24 : 12) * scale;
+                    ctx.fillRect(x+1, y+1, size-2, size-2);
+                    if (i === 0) {
+                        ctx.fillStyle = '#fff';
+                        ctx.shadowBlur = 16 * scale;
+                        const eyeR = Math.max(1.5, size * 0.18);
+                        const ox = player.dir.x * size * 0.12;
+                        const oy = player.dir.y * size * 0.12;
+                        ctx.beginPath(); ctx.arc(x + size*0.3 + ox, y + size*0.3 + oy, eyeR, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x + size*0.7 + ox, y + size*0.3 + oy, eyeR, 0, Math.PI*2); ctx.fill();
+                    }
+                }
+                ctx.globalAlpha = 1;
+            }
+            ctx.shadowBlur = 0;
+
+            const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width*0.3, canvas.width/2, canvas.height/2, canvas.width*0.8);
+            grad.addColorStop(0, 'rgba(0,0,0,0)');
+            grad.addColorStop(1, 'rgba(0,0,0,0.55)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            renderMinimap();
+            if (isCompetitive) renderRankings();
+        }
+
+        function renderMinimap() {
+            const size = minimapCanvas.width;
+            mctx.clearRect(0, 0, size, size);
+            mctx.fillStyle = '#061206';
+            mctx.fillRect(0, 0, size, size);
+            mctx.strokeStyle = '#2a5a2a';
+            mctx.lineWidth = 1;
+            mctx.strokeRect(0, 0, size, size);
+
+            const sc = size / config.mapSize;
+
+            mctx.fillStyle = '#ffd96644';
+            for (let f of foods) mctx.fillRect(f.x * sc - 1, f.y * sc - 1, 2, 2);
+
+            for (let e of enemies) {
+                if (!e.alive) continue;
+                mctx.fillStyle = e.color;
+                for (let seg of e.segments) mctx.fillRect(seg.x * sc - 1, seg.y * sc - 1, 2, 2);
+            }
+
+            if (player.alive) {
+                mctx.fillStyle = '#7cfc7c';
+                for (let seg of player.segments) mctx.fillRect(seg.x * sc - 1.5, seg.y * sc - 1.5, 3, 3);
+            }
+
+            if (isCompetitive) {
+                const all = getAllSnakes().sort((a, b) => b.length - a.length);
+                if (all.length > 0 && all[0].alive) {
+                    const first = all[0];
+                    mctx.strokeStyle = '#ffd700';
+                    mctx.lineWidth = 2;
+                    mctx.beginPath();
+                    const h = first.segments[0];
+                    mctx.arc(h.x * sc, h.y * sc, 5, 0, Math.PI * 2);
+                    mctx.stroke();
+                    mctx.fillStyle = '#ffd700';
+                    mctx.font = 'bold 8px sans-serif';
+                    mctx.fillText('👑', h.x * sc + 6, h.y * sc - 4);
+                }
+            }
+        }
+
+        function getAllSnakes() {
+            const list = [];
+            if (player.alive) {
+                list.push({ name: '你', length: player.trueLength, color: '#7cfc7c', isPlayer: true, segments: player.segments, alive: true });
+            }
+            for (let e of enemies) {
+                if (!e.alive) continue;
+                list.push({ name: e.name || 'AI', length: e.trueLength, color: e.color, isPlayer: false, segments: e.segments, alive: true });
+            }
+            return list;
+        }
+
+        function renderRankings() {
+            const all = getAllSnakes().sort((a, b) => b.length - a.length).slice(0, 10);
+            let html = '';
+            for (let i = 0; i < all.length; i++) {
+                const s = all[i];
+                let cls = 'rank-item';
+                if (i === 0) cls += ' gold';
+                else if (i === 1) cls += ' silver';
+                else if (i === 2) cls += ' bronze';
+                html += `<div class="${cls}"><span class="dot" style="background:${s.color}"></span><span class="name">${s.name}</span><span>${s.length.toFixed(1)}</span></div>`;
+            }
+            rankPanel.innerHTML = html;
+        }
+
+        // ========== 主循环 ==========
+        function gameLoop(now) {
+            if (!lastTimestamp) {
+                lastTimestamp = now;
+                render();
+                gameLoopId = requestAnimationFrame(gameLoop);
+                return;
+            }
+            const deltaMs = Math.min(60, now - lastTimestamp);
+            lastTimestamp = now;
+            const deltaSec = deltaMs / 1000;
+
+            if (gameActive) {
+                if (player.alive && player.isMouseControl) updateMouseDirection();
+
+                if (player.alive) {
+                    if (isMouseDown && !player.boostActive && !player._preventBoost) {
+                        player.boostActive = true;
+                    } else if (!isMouseDown && player.boostActive && !player._spacePressed) {
+                        player.boostActive = false;
+                    }
+                }
+
+                if (player.alive) {
+                    updateSnakeMovement(player, deltaSec, config.playerSpeed);
+                    handleEat(player, true);
+                    processBoostConsume(player, deltaSec, true);
+                } else if (player.respawnTimer > 0) {
+                    player.respawnTimer -= deltaSec;
+                    if (player.respawnTimer <= 0) {
+                        respawnSnake(player);
+                        player.invincibleTimer = 2;
+                        respawnTimerDiv.classList.remove('show');
+                    } else {
+                        respawnTimerDiv.textContent = Math.ceil(player.respawnTimer);
+                        respawnTimerDiv.classList.add('show');
+                    }
+                }
+
+                for (let e of enemies) {
+                    if (e.alive) {
+                        updateAI(e, deltaSec);
+                        if (Math.random() < 0.005) e.boostActive = !e.boostActive;
+                        updateSnakeMovement(e, deltaSec, e.speed);
+                        handleEat(e, false);
+                        processBoostConsume(e, deltaSec, false);
+                    } else if (e.respawnTimer > 0) {
+                        e.respawnTimer -= deltaSec;
+                        if (e.respawnTimer <= 0) respawnSnake(e);
+                    }
+                }
+
+                pushFoods();
+                checkFoodCrush();
+                checkCollisions();
+
+                if (Math.random() < 0.1) spawnFood(); // 低概率补充
+                
+                // 补充AI
+                if (gameMode === 'ai' && enemies.filter(e => e.alive).length < 3) {
+                    spawnEnemy();
+                }
+            }
+
+            updateCamera();
+            render();
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // ========== 输入处理 ==========
+        function handleKeyDown(e) {
+            const key = e.key;
+            if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(key)) e.preventDefault();
+
+            if (key === 'r' || key === 'R') {
+                if (gameMode === 'single' && !gameActive) {
+                    if (gameLoopId) cancelAnimationFrame(gameLoopId);
+                    initGame('single');
+                    gameLoopId = requestAnimationFrame(gameLoop);
+                } else if (gameMode === 'ai' && !gameActive) {
+                    location.reload();
+                }
+                return;
+            }
+
+            if (!gameActive || !player.alive) return;
+
+            if (key === ' ') {
+                player._spacePressed = true;
+                player.boostActive = true;
+                return;
+            }
+
+            const d = player.targetDir;
+            if (key === 'ArrowUp' && player.dir.y !== 1) { player.targetDir = { x: 0, y: -1 }; player.isMouseControl = false; }
+            else if (key === 'ArrowDown' && player.dir.y !== -1) { player.targetDir = { x: 0, y: 1 }; player.isMouseControl = false; }
+            else if (key === 'ArrowLeft' && player.dir.x !== 1) { player.targetDir = { x: -1, y: 0 }; player.isMouseControl = false; }
+            else if (key === 'ArrowRight' && player.dir.x !== -1) { player.targetDir = { x: 1, y: 0 }; player.isMouseControl = false; }
+        }
+
+        function handleKeyUp(e) {
+            if (e.key === ' ') {
+                player._spacePressed = false;
+                if (!isMouseDown) player.boostActive = false;
+            }
+        }
+
+        function bindMouseEvents() {
+            canvas.addEventListener('mousemove', (e) => {
+                mouseWorldPos = getMouseWorldPos(e);
+            });
+            
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {
+                    isMouseDown = true;
+                    mouseWorldPos = getMouseWorldPos(e);
+                    if (player.alive && gameActive) {
+                        player.isMouseControl = true;
+                        player.boostActive = true;
+                    }
+                }
+            });
+            
+            window.addEventListener('mouseup', (e) => {
+                if (e.button === 0) {
+                    isMouseDown = false;
+                    if (!player._spacePressed && player.alive) player.boostActive = false;
+                }
+            });
+
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                isMouseDown = true;
+                mouseWorldPos = getMouseWorldPos(e);
+                if (player.alive && gameActive) {
+                    player.isMouseControl = true;
+                    player.boostActive = true;
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                mouseWorldPos = getMouseWorldPos(e);
+            }, { passive: false });
+
+            window.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                isMouseDown = false;
+                if (!player._spacePressed && player.alive) player.boostActive = false;
+            }, { passive: false });
+        }
+
+        // ========== 界面事件 ==========
+        document.getElementById('btnSingle').addEventListener('click', () => {
+            try {
+                if (gameLoopId) cancelAnimationFrame(gameLoopId);
+                initGame('single');
+                gameLoopId = requestAnimationFrame(gameLoop);
+            } catch(err) {
+                console.error(err);
+                initGame('single');
+                gameLoopId = requestAnimationFrame(gameLoop);
+            }
+        });
+
+        document.getElementById('btnAI').addEventListener('click', () => {
+            aiPanel.classList.toggle('show');
+        });
+
+        function applyPreset(preset) {
+            const mapSize = document.getElementById('paramMapSize');
+            const aiCount = document.getElementById('paramAICount');
+            const respawn = document.getElementById('paramRespawn');
+            const startLen = document.getElementById('paramStartLen');
+            const foodCount = document.getElementById('paramFoodCount');
+            const pSpeed = document.getElementById('paramPlayerSpeed');
+            const aSpeed = document.getElementById('paramAISpeed');
+
+            if (preset === 'easy') {
+                mapSize.value = 3000; aiCount.value = 5; respawn.value = 5; startLen.value = 5;
+                foodCount.value = 100; pSpeed.value = 140; aSpeed.value = 70;
+            } else if (preset === 'normal') {
+                mapSize.value = 5000; aiCount.value = 14; respawn.value = 3; startLen.value = 4;
+                foodCount.value = 200; pSpeed.value = 140; aSpeed.value = 100;
+            } else {
+                mapSize.value = 8000; aiCount.value = 25; respawn.value = 1; startLen.value = 3;
+                foodCount.value = 350; pSpeed.value = 130; aSpeed.value = 120;
+            }
+            setupConfigFromPanel();
+        }
+
+        document.getElementById('presetEasy').addEventListener('click', () => applyPreset('easy'));
+        document.getElementById('presetNormal').addEventListener('click', () => applyPreset('normal'));
+        document.getElementById('presetHard').addEventListener('click', () => applyPreset('hard'));
+
+        document.getElementById('btnStartAI').addEventListener('click', (e) => {
+            e.preventDefault();
+            try {
+                if (gameLoopId) cancelAnimationFrame(gameLoopId);
+                initGame('ai');
+                gameLoopId = requestAnimationFrame(gameLoop);
+            } catch(err) {
+                console.error(err);
+                startScreen.style.display = 'none';
+                gameHud.style.display = 'flex';
+                minimapDiv.style.display = 'block';
+                rankPanel.style.display = 'flex';
+                gameActive = true;
+                gameLoopId = requestAnimationFrame(gameLoop);
+            }
+        });
+
+        document.getElementById('btnResetCoins').addEventListener('click', () => {
+            systemCoins = 0;
+            try { localStorage.setItem('snakeCoins', 0); } catch(e) {}
+            updateCoinDisplay();
+            toast('金币已重置', 1200);
+        });
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+        updateCoinDisplay();
+        bindMouseEvents();
+    })();
+</script>
+</body>
+</html>
